@@ -7,3 +7,5 @@ dist/
 build/
 *.pt
 *.pth
+data/
+.ipynb_checkpoints/

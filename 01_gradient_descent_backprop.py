@@ -236,7 +236,7 @@ plt.show()
 # =============================================================================
 print("""
 ╔══════════════════════════════════════════════════════════════════════╗
-║  KEY TAKEAWAYS                                                      ║
+║  KEY TAKEAWAYS                                                       ║
 ╠══════════════════════════════════════════════════════════════════════╣
 ║                                                                      ║
 ║  1. requires_grad=True   tells PyTorch to track operations           ║
@@ -245,7 +245,7 @@ print("""
 ║  4. optimizer.step()     updates weights using gradients             ║
 ║                                                                      ║
 ║  The training loop is always:                                        ║
-║     forward → loss → zero_grad → backward → step                    ║
+║     forward → loss → zero_grad → backward → step                     ║
 ║                                                                      ║
 ║  PyTorch autograd builds a computation graph dynamically and uses    ║
 ║  the chain rule to compute gradients automatically — you never       ║
