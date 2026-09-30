@@ -8,4 +8,5 @@ build/
 *.pt
 *.pth
 data/
+data
 .ipynb_checkpoints/

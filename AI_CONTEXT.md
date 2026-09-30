@@ -189,15 +189,51 @@ def evaluate(model, loader, loss_fn, device):
 
 ## 📍 Current Progress
 
-**Last completed:** Day 10 (Data Loading & Preprocessing)
+**Last completed:** Day 17 (Build Your First CNN) — notes in `LEARNING_NOTES_DAY17.md`; worked exercise solutions in `day17/day17_build_first_cnn_with_exercises.ipynb`.
 
-**Currently on:** Day 11 (First Neural Network - MLP on MNIST)
+**Currently on:** day17b (Autoencoder Intro) next — Phase 4: CNNs (Days 16–21)
 
-**Next session goal:** Complete Day 11 - Build and train MLP on MNIST
+**Next session goal:** Day 17b — convert the classifier to an image-to-image autoencoder (`day17b_autoencoder_intro/day17b_autoencoder_intro.ipynb`), then Day 18 (VGG/ResNet).
+
+**CNN arc ordering (as studied):**
+- Day 16 → Day 17 → **day17b (autoencoder bridge)** → Day 18 → Day 19 → Day 20 → Day 21 → **day21_extra (CNN restoration / U-Net)**
+- `day17b_autoencoder_intro/` sits between Day 17 and Day 18 by design; `day21_extra_cnn_restoration/` follows Day 21.
+- Rationale: 17b reuses Day 17's conv/pool mechanics while fresh; Day 18's skip connections then arrive *before* the U-Net used in day21_extra.
+
+**Prerequisites already in hand:** full CIFAR-10 augmentation+normalization pipeline (Day 15), `nn.Module`/autograd/optimizers/losses (Days 4–9), BatchNorm + LR scheduling (Day 13), checkpointing + early stopping (Day 14). CIFAR-10 data cached at `day15/data/cifar-10-batches-py`. Device is `mps` on this Mac.
+
+---
+
+## 🖥️ Environment & Data Setup
+
+- **Venv:** `.venv/` — Python 3.11.8, `torch` + `torchvision 0.27.0`. In Jupyter use the `.venv (3.11.8)` kernel; from the CLI use `.venv/bin/python`.
+- **Device:** `torch.device("mps" if torch.backends.mps.is_available() else "cpu")` → Apple GPU.
+- **Shared datasets — DO NOT re-download.** CIFAR-10 lives at `day15/data/cifar-10-batches-py` (+ `cifar-10-python.tar.gz`); MNIST lives at `day14/data/MNIST/raw`. Every CNN-arc notebook uses `root="./data"` **relative to its own folder**, so each folder has a `data` symlink to the existing copy:
+  - `day16/ … day21/`, `day21_extra_cnn_restoration/`: `data -> ../day15/data`
+  - `day17b_autoencoder_intro/data/`: `cifar-10-batches-py` + `cifar-10-python.tar.gz` -> Day 15 copy; `MNIST -> ../../day14/data/MNIST`
+- **Verified:** `torchvision.datasets.CIFAR10(root="./data", download=True)` and `MNIST(...)` load fully offline (torchvision skips `download` when data is present). Leave `download=True` in the notebooks — it's a safe no-op. (Day 16 was previously blocked by a fresh 170 MB re-download; the symlink fixed it.)
+- These `data` symlinks are intentionally ignored by `.gitignore` (the `data` pattern) so they are never committed.
 
 ---
 
 ## 💡 Frequently Asked Questions (Anticipated)
+
+### Day 16 Q&A Topics Covered (see `LEARNING_NOTES_DAY16.md`):
+- **§1 vs §2 output size:** §1 shrinks (4→2) because `padding=0`; §2 stays 32×32 because `F.conv2d(..., padding=1)`. Same 3×3 kernel, stride 1 — padding is the only difference. Formula: `out = (in + 2p − k)/s + 1`.
+- **`F.conv2d` vs `nn.Conv2d`:** function (stateless, fixed kernels) vs Module (owns learnable weights, wraps `F.conv2d`). `nn.Conv2d`'s "4 numbers" are hyperparameters describing the shape `(C_out,C_in,kH,kW)` of ONE 4-D weight tensor — not 4 args.
+- **`k.view(1,1,3,3)`:** reshape = `np.reshape`; prepends channel dims so a (3,3) kernel matches F.conv2d's required 4-D weight. Same as `unsqueeze(0).unsqueeze(0)`.
+- **`out_channels=16` ≠ 16 layers:** it's 16 parallel filters/feature maps (a *width*). Distinguish tensor channel-depth (C in C×H×W) from network depth (# stacked layers).
+- **Float compare gotcha:** `nn.Conv2d` (default bias) vs `F.conv2d` (no bias) differ; even matched, results differ ~2.4e-6 → use `torch.allclose(a, b, atol=1e-5)`, never `==`.
+- **§6 feature maps (random conv):** intent = the "before" picture; random filters are meaningless, contrasting §2 (hand-made) and Day 17 §4 (learned). Bug fixed: `range(1,10)` over 8 channels → `IndexError`; now `out_channels=9` + `range(1, features.shape[1]+1)`.
+
+### Day 17 Q&A Topics Covered (see `LEARNING_NOTES_DAY17.md`):
+- **Why the stack shrinks 32→4×4 while channels grow 3→128:** trade *where* for *what*. Conv `3×3 + padding=1` keeps size; `MaxPool(2)` halves it; depth compounds the receptive field to ~**22×22** of the 32×32 input. Downsample for (a) compute, (b) translation invariance, (c) generalization. Three stride-2 pools → `32/2³ = 4`; flatten = `128·4·4 = 2048`.
+- **Flatten & the batch dim:** `nn.Flatten()` defaults `start_dim=1`, so the **batch dim (axis 0) is preserved**: `(N,128,4,4) → (N,2048) → (N,10)`. Same as MLP (output `(batch, classes)`). **Trap:** the `128` in `nn.Linear(128*4*4, 256)` is the **channel count**, *not* the batch size — it merely coincidentally equals `BATCH_SIZE = 128`. `in_features` = channels × H × W.
+- **`BatchNorm2d` stats:** normalize **per channel** using mean/var over **(N, H, W)** (vs BN1d over N). Running stats shape `(C,)`. `train()` uses batch stats and updates running via EMA `running = (1−m)·running + m·batch` (default `m=0.1`); `eval()` uses running stats. Verified: first-pass `running_mean[0] = −0.0122 = 0.1 × (−0.1216)` batch mean.
+- **Notebook §4 plots _weights_, not activations:** `model.features[0].weight` is `(32, 3, 3, 3)` = 32 filters, each `(3,3,3)` = three RGB 3×3 kernels **summed** (verified manual `−0.50426900` == PyTorch `−0.50426894`). `permute(1,2,0)` → 3×3 RGB thumbnail; min-max normalize is display-only. Only **layer 1** is `imshow`-able because only its input is RGB; deeper layers → visualize *activations* (forward hooks, Day 19).
+- **MLP works on MNIST but not CIFAR-10:** MNIST digits are centered/rigid/clutter-free → pixel *position* is a reliable feature, so position-locked weights suffice. CIFAR objects shift in scale/pose/position with clutter → the MLP lacks **locality** and **translation equivariance** (each position has private weights). CNN weight sharing builds invariance in. Evidence (Ex 2, equal ~620k params): **CNN 49.76% vs MLP 39.24%**.
+- **Coupling trap:** adding/removing a conv block or pool changes the flatten size (`128·4·4 = 2048` → `256·2·2 = 1024`), so the head's `Linear` `in_features` must change.
+- **Worked exercises (reduced-budget companion):** `DeeperCNN` 654,346 params / 54.12%; `GAPCNN` (`AdaptiveAvgPool2d(1)`) 94,986 params (−84.7%) / 41.62%; feature maps `32×16×16 → 64×8×8 → 128×4×4`.
 
 ### Day 10 Q&A Topics Covered:
 - **torchvision vs torch**: CV toolkit vs core DL framework
@@ -231,3 +267,6 @@ def evaluate(model, loader, loss_fn, device):
 
 - **2026-06-01:** Initial creation of AI_CONTEXT.md after digesting the full codebase
 - **2026-06-03:** Completed Day 10, updated progress, added Q&A summary from Day 10 session
+- **2026-09-27:** Entered Phase 4 (CNNs). Updated progress to Day 15 complete / Day 16 current. Recorded CNN arc ordering incl. extension notebooks (day17b, day21_extra). Opened a running Q&A thread for Days 16–21 to be consolidated into LEARNING_NOTES_DAY16–21.
+- **2026-09-29:** Completed Day 16. Wrote `LEARNING_NOTES_DAY16.md` (convolution operation, F vs nn API, padding/stride, channels≠layers, weight sharing, feature maps). Fixed an off-by-one bug in Day 16 §6 (`nn.Conv2d(3,8)` + `range(1,10)` → `out_channels=9` + shape-anchored loop). Set up shared-dataset `data` symlinks for the whole CNN arc; documented env/data setup.
+- **2026-09-30:** Completed Day 17. Wrote `LEARNING_NOTES_DAY17.md` (CNN block blueprint, resolution↓/channels↑ rationale + receptive fields, Flatten/batch-dim question, BatchNorm2d stats, weights vs activations, MLP-vs-CNN intuition, optics connections). Created and **executed** worked exercise solutions in `day17/day17_build_first_cnn_with_exercises.ipynb` (DeeperCNN, CNN-vs-MLP, feature-map hooks, GAP head; reduced-budget companion run: main 6 ep, exercises 3 ep on 8k). Added Day 17 Q&A summary here; progress advanced to day17b/Day 18.
