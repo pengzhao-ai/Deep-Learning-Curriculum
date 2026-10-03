@@ -61,6 +61,7 @@
 - **Day 17:** Build Your First CNN
 - **Day 18:** CNN Architectures — VGG & ResNet
 - **Day 19:** CNN Deep Dive — Feature Visualization
+- **Day 19b:** Network Visualization (extension) — `torchinfo`, VisualTorch, Netron, TensorBoard (+ optional torchviz/torchview)
 - **Day 20:** Transfer Learning & Fine-Tuning
 - **Day 21:** Build a CNN from Scratch — Complete Project (target >90% on CIFAR-10)
 
@@ -189,16 +190,16 @@ def evaluate(model, loader, loss_fn, device):
 
 ## 📍 Current Progress
 
-**Last completed:** Day 17 (Build Your First CNN) — notes in `LEARNING_NOTES_DAY17.md`; worked exercise solutions in `day17/day17_build_first_cnn_with_exercises.ipynb`.
+**Last completed:** Day 18 (CNN Architectures — VGG blocks & ResNet skip connections) — notes in `LEARNING_NOTES_DAY18.md`; notebook `day18/day18_cnn_architectures.ipynb`.
 
-**Currently on:** day17b (Autoencoder Intro) next — Phase 4: CNNs (Days 16–21)
+**Currently on:** Day 19 (CNN Deep Dive — feature visualization) — Phase 4: CNNs (Days 16–21). Day 19b (Network Visualization extension) has also been built as a companion.
 
-**Next session goal:** Day 17b — convert the classifier to an image-to-image autoencoder (`day17b_autoencoder_intro/day17b_autoencoder_intro.ipynb`), then Day 18 (VGG/ResNet).
+**Next session goal:** Day 19 — visualize learned filters, feature maps per depth, a simple Class Activation Map, activation statistics, and dead-ReLU analysis (`day19/`). Day 18's residual/stage structure and Day 17's forward-hook pattern are the direct setup. Its **structure-side companion** `day19b_network_visualization/` (built 2026-10-02) covers `torchinfo`, VisualTorch, Netron, and TensorBoard graph views.
 
 **CNN arc ordering (as studied):**
-- Day 16 → Day 17 → **day17b (autoencoder bridge)** → Day 18 → Day 19 → Day 20 → Day 21 → **day21_extra (CNN restoration / U-Net)**
-- `day17b_autoencoder_intro/` sits between Day 17 and Day 18 by design; `day21_extra_cnn_restoration/` follows Day 21.
-- Rationale: 17b reuses Day 17's conv/pool mechanics while fresh; Day 18's skip connections then arrive *before* the U-Net used in day21_extra.
+- Day 16 → Day 17 → **day17b (autoencoder bridge)** → Day 18 → Day 19 → **day19b (network visualization)** → Day 20 → Day 21 → **day21_extra (CNN restoration / U-Net)**
+- `day17b_autoencoder_intro/` sits between Day 17 and Day 18 by design; `day19b_network_visualization/` sits beside Day 19 (structure vs behavior); `day21_extra_cnn_restoration/` follows Day 21.
+- Rationale: 17b reuses Day 17's conv/pool mechanics while fresh; Day 18's skip connections then arrive *before* the U-Net used in day21_extra; Day 19b reuses Day 17's `SimpleCNN` + Day 18's `SimpleResNet` to teach the architecture-visualization toolchain.
 
 **Prerequisites already in hand:** full CIFAR-10 augmentation+normalization pipeline (Day 15), `nn.Module`/autograd/optimizers/losses (Days 4–9), BatchNorm + LR scheduling (Day 13), checkpointing + early stopping (Day 14). CIFAR-10 data cached at `day15/data/cifar-10-batches-py`. Device is `mps` on this Mac.
 
@@ -235,6 +236,25 @@ def evaluate(model, loader, loss_fn, device):
 - **Coupling trap:** adding/removing a conv block or pool changes the flatten size (`128·4·4 = 2048` → `256·2·2 = 1024`), so the head's `Linear` `in_features` must change.
 - **Worked exercises (reduced-budget companion):** `DeeperCNN` 654,346 params / 54.12%; `GAPCNN` (`AdaptiveAvgPool2d(1)`) 94,986 params (−84.7%) / 41.62%; feature maps `32×16×16 → 64×8×8 → 128×4×4`.
 
+### Day 17b Q&A Topics Covered (see `LEARNING_NOTES_DAY17B.md`):
+- **Classifier → autoencoder:** only the **head** (class logits → image) and the **loss** (CrossEntropy → MSE) change; the backbone is identical. The input is its own label → **self-supervised**.
+- **"Latent" and "auto":** the 128-D bottleneck is the *latent* (hidden) code (JPEG-file analogy); **auto** = *self*, because the target is the input itself. An encoder–decoder becomes an *auto*encoder when it reconstructs its own input.
+- **Two models & params:** LinearAE **468,368** (784→256→128→256→784, `Sigmoid`; 20 ep: train MSE 0.00335 / val 0.00345). ConvAE **661,795** (encoder 93,696; fc 526,464 ≈ **80%**; decoder 41,635). `ConvTranspose2d(k=2,s=2)` doubles H,W → `4→8→16→32`.
+- **Loss:** MSE = pixel-level squared error; PSNR = `10·log10(MAX²/MSE)`; L1 → sharper than MSE.
+- **Image-to-image generalization:** same encoder–decoder + per-pixel loss; only the **target slot** changes (denoise→clean, blur→sharp, super-res→HR, colorize, pix2pix, medical). Targets from **synthesized pairs** (`day21_extra`'s `DegradedCIFAR10` returns `(degraded, clean)`) or **unpaired** (CycleGAN). Caveats: MSE is blurry → perceptual/adversarial losses; tight bottleneck → **U-Net skip connections**.
+- **Reading the results:** MNIST looks close (easy data, ~6× compression; error concentrated at high-frequency **edges**; `cmap="hot"` exaggerates tiny ~0.003 errors). CIFAR looks fuzzy (3072 values, ~24× compression, MSE averaging → grey, normalize/clamp, ConvTranspose checkerboard, only 20 ep) — expected, and motivates U-Nets / better losses.
+- **`requires_grad`/`.numpy()` bug:** `reconstructions` inherits the grad tag; `imshow`→`.numpy()` is forbidden on it. `model.eval()` does **not** help. Fix: wrap inference in `torch.no_grad()` **and** `.detach()` before plotting.
+
+### Day 18 Q&A Topics Covered (see `LEARNING_NOTES_DAY18.md`):
+- **VGG insight:** stack small 3×3 convs instead of one big filter. Two 3×3 convs = one 5×5's receptive field but `18C²` vs `25C²` params (−28%); three 3×3 = one 7×7 (`27C²` vs `49C²`, −45%) and more ReLUs (more non-linear). `vgg_block(in,out,num_convs)` = `num_convs × (Conv3×3+BN+ReLU)` + `MaxPool`; `in_channels if i==0 else out_channels` makes the *first* conv change depth and the rest keep it fixed. `nn.Sequential(*layers)` unpacks a **list** into positional args.
+- **VGGNet facts (measured):** `1,149,770` params (features `1,147,200`, GAP head `2,570`); trace `(1,3,32,32)→(1,64,16,16)→(1,128,8,8)→(1,256,4,4)→(1,10)`. Head is GAP + `Linear(256→10)` (no flatten-coupling trap).
+- **Degradation problem:** deep *plain* nets get worse on **train and test** error — an **optimization** problem (vanishing/exploding gradients), not overfitting.
+- **Residual learning:** learn `F(x)=H(x)−x`, output `= F(x)+x`. If `F(x)=0` the block is identity ⇒ *adding layers can never hurt*; the `+` gives gradients a direct path.
+- **Shortcut modes:** same shape (`stride=1`, `in==out`) → `nn.Sequential()` empty = **pure identity, 0 params**. Shape change → **projection** shortcut `1×1 Conv(stride=stride)+BN` (e.g. `8,448` params for `64→128,s2`). `bias=False` because the following BN supplies the shift.
+- **SimpleResNet stage rule:** first block of each stage uses `stride=2` + doubles channels (→ projection), rest are identity blocks. `1,856+147,968+525,568+2,099,712+2,570 = 2,777,674` params; trace `(1,64,32,32)→(1,64,32,32)→(1,128,16,16)→(1,256,8,8)→(1,256,1,1)→(1,10)`.
+- **VGG vs ResNet lesson:** ResNet expected to train *better* despite **more** params — architecture (skip connections) beats raw parameter count. Both trained with Adam lr=1e-3, wd=1e-4, CosineAnnealingLR, 30 ep.
+- **Ordering rationale (18→19→20→21):** 18 gives the blocks, 19 the microscope, 20 the competitor, 21 the engineer. Four threads: skip-connection, hierarchy, swap-head-and-loss, reuse-vs-build. The skip connection is the linchpin (reappears in the U-Net and every Transformer block).
+
 ### Day 10 Q&A Topics Covered:
 - **torchvision vs torch**: CV toolkit vs core DL framework
 - **DataLoader type**: Custom PyTorch iterator (not a basic Python type)
@@ -270,3 +290,6 @@ def evaluate(model, loader, loss_fn, device):
 - **2026-09-27:** Entered Phase 4 (CNNs). Updated progress to Day 15 complete / Day 16 current. Recorded CNN arc ordering incl. extension notebooks (day17b, day21_extra). Opened a running Q&A thread for Days 16–21 to be consolidated into LEARNING_NOTES_DAY16–21.
 - **2026-09-29:** Completed Day 16. Wrote `LEARNING_NOTES_DAY16.md` (convolution operation, F vs nn API, padding/stride, channels≠layers, weight sharing, feature maps). Fixed an off-by-one bug in Day 16 §6 (`nn.Conv2d(3,8)` + `range(1,10)` → `out_channels=9` + shape-anchored loop). Set up shared-dataset `data` symlinks for the whole CNN arc; documented env/data setup.
 - **2026-09-30:** Completed Day 17. Wrote `LEARNING_NOTES_DAY17.md` (CNN block blueprint, resolution↓/channels↑ rationale + receptive fields, Flatten/batch-dim question, BatchNorm2d stats, weights vs activations, MLP-vs-CNN intuition, optics connections). Created and **executed** worked exercise solutions in `day17/day17_build_first_cnn_with_exercises.ipynb` (DeeperCNN, CNN-vs-MLP, feature-map hooks, GAP head; reduced-budget companion run: main 6 ep, exercises 3 ep on 8k). Added Day 17 Q&A summary here; progress advanced to day17b/Day 18.
+- **2026-10-01:** Completed Day 17b (Autoencoder Intro). Fixed a `requires_grad`/`.numpy()` plotting bug in `day17b_autoencoder_intro.ipynb` (wrapped inference in `torch.no_grad()` and added `.detach()` in both visualization cells). Recorded the discussion into `LEARNING_NOTES_DAY17B.md` (classifier→AE swap, latent/auto naming, both models + verified param counts, MSE/L1, image-to-image generalization & target-slot framing, MNIST-vs-CIFAR reconstruction analysis, the autograd-plotting bug, optics connections, self-check). Added Day 17b Q&A summary here; progress advanced to Day 18.
+- **2026-10-02:** Completed Day 18 (CNN Architectures — VGG blocks & ResNet skip connections). Wrote `LEARNING_NOTES_DAY18.md` (VGG small-filter insight + param ratios; the degradation problem; residual learning `F(x)+x`; identity vs projection shortcuts; SimpleResNet stage pattern; verified VGG `1,149,770` vs ResNet `2,777,674` param counts and shape traces; the 18→19→20→21 ordering rationale; four cross-arc threads; optics connections; self-check). No notebook code changes needed. Added Day 18 Q&A summary here; progress advanced to Day 19.
+- **2026-10-02 (cont.):** Built **Day 19b extension** (`day19b_network_visualization/`) — the *structure* counterpart to Day 19's *behavior* visualization. Added `requirements-viz.txt` (`torchinfo`, `visualtorch`, `netron`, `onnx`; pure-pip, fully encapsulated in `.venv`) and a notebook covering: `torchinfo.summary` tables; VisualTorch `lenet`/`flow`/`graph` figures for `SimpleCNN`/`SimpleResNet`/`resnet18` (paper-quality, no system deps); guarded `torchviz`/`torchview` cells (need Graphviz `dot`); ONNX export → Netron; TensorBoard `add_graph`; and a PlotNeuralNets (LaTeX) appendix. Notebook **executed headless to verify** (all cells pass; 6 figures + `simplecnn.onnx` + TB logs generated). Updated `.gitignore` (`assets/`, `runs/`, `*.onnx`), `CURRICULUM.md`, and this file. Wrote `LEARNING_NOTES_DAY19B.md`.

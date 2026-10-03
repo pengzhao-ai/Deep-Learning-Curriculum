@@ -10,3 +10,8 @@ build/
 data/
 data
 .ipynb_checkpoints/
+
+# Day 19b network-visualization generated outputs (figures, exported models, TB runs)
+day19b_network_visualization/assets/
+runs/
+*.onnx

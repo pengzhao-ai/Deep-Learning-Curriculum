@@ -1,0 +1,32 @@
+# -----------------------------------------------------------------------------
+# Optional visualization dependencies for Day 19b (network visualization)
+# -----------------------------------------------------------------------------
+# These are NOT needed to run the core curriculum (see requirements.txt).
+# They are only used by day19b_network_visualization/day19b_network_visualization.ipynb
+# to draw/inspect network architectures.
+#
+# Install into the project venv (fully encapsulated, nothing global):
+#     .venv/bin/pip install -r requirements-viz.txt
+#
+# NOTE on Graphviz:
+#   `torchviz` and `torchview` additionally require the system Graphviz "dot"
+#   binary (e.g. `brew install graphviz`). They are OPTIONAL — the notebook
+#   guards those cells and skips them gracefully if "dot" is not present.
+#   Everything below (torchinfo, visualtorch, netron, onnx, tensorboard) is
+#   pure-pip and needs no system packages.
+# -----------------------------------------------------------------------------
+
+# Tabular model inspection (layer shapes + parameter counts)
+torchinfo>=1.8.0
+
+# Paper-quality architecture diagrams (flow / graph / lenet styles)
+visualtorch>=1.4.1
+
+# Interactive model-file viewer (opens exported .onnx in a browser/desktop UI)
+netron>=9.3.1
+
+# Required to export PyTorch models to ONNX (for Netron)
+onnx>=1.23.0
+
+# Already part of the core requirements, listed here for completeness (graph view)
+# tensorboard>=2.20.0

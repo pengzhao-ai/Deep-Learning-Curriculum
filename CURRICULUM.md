@@ -68,6 +68,7 @@
 | 17 | **Build Your First CNN** | Build a CNN from scratch; Conv → BN → ReLU → Pool architecture; train on CIFAR-10; understand how feature extractors + classifier heads work together |
 | 18 | **CNN Architectures — VGG & ResNet** | VGG-style blocks (stacked 3×3 filters); ResNet skip connections; implement both patterns; understand the historical evolution of CNN design |
 | 19 | **CNN Deep Dive — Feature Visualization** | Visualize learned filters, feature maps at different depths, activation patterns; understand *what* a CNN learns; debug and trust your model |
+| 19b | **Network Visualization (extension)** | Draw & inspect a CNN's *structure*: `torchinfo` layer tables, **VisualTorch** flow/graph/lenet figures, **Netron** model-file viewer, TensorBoard graph; optional `torchviz`/`torchview`. Complements Day 19's *behavior* views (filters, feature maps, CAM) |
 | 20 | **Transfer Learning & Fine-Tuning** | Use a pre-trained ResNet-18 (ImageNet); feature extraction vs. fine-tuning strategies; adapt to new tasks with minimal data |
 | 21 | **Build a CNN from Scratch — Complete Project** | Design, train, evaluate, and debug your own CNN; apply all techniques (augmentation, BatchNorm, Dropout, scheduling); target >90% on CIFAR-10 |
 
@@ -115,6 +116,8 @@ tqdm
 tensorboard
 einops
 ```
+
+> **Optional — visualization extras (Day 19b):** `requirements-viz.txt` adds `torchinfo`, `visualtorch`, `netron`, `onnx` (pure-pip). `torchviz` / `torchview` additionally need the system Graphviz `dot` binary (`brew install graphviz`).
 
 ---
 
@@ -165,6 +168,8 @@ DL_learning/
 │   └── day18_cnn_architectures.ipynb
 ├── day19/
 │   └── day19_cnn_deep_dive.ipynb
+├── day19b_network_visualization/
+│   └── day19b_network_visualization.ipynb
 ├── day20/
 │   └── day20_transfer_learning.ipynb
 ├── day21/
